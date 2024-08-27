@@ -19,8 +19,9 @@ class StripeController extends Controller
 
         $productName = $request->get('productName');
         $totalPrice = $request->get('total');
-        $two0 = "00";
-        $total = "$totalPrice$two0";
+
+        $totalInCents = $totalPrice * 100;
+
 
         $session = Session::create([
             'line_items'  => [
@@ -30,7 +31,7 @@ class StripeController extends Controller
                         'product_data' => [
                             "name" => $productName,
                         ],
-                        'unit_amount'  => $total,
+                        'unit_amount'  => $totalInCents,
                     ],
                     'quantity'   => 1,
                 ],
