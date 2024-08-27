@@ -69,48 +69,62 @@
                     Laravel 10 Stripe Payment Integration
                 </div>
                 <div class="card-body">
+                    @if (session('message'))
+                        <div class="alert alert-success">
+                            {{ session('message') }}
+                        </div>
+                    @endif
+
+                    @if (session('error'))
+                        <div class="alert alert-danger">
+                            {{ session('error') }}
+                        </div>
+                    @endif
+
                     <table id="cart" class="table table-hover">
                         <thead>
                         <tr>
                             <th style="width:50%">Product</th>
                             <th style="width:10%">Price</th>
-                            <th style="width:8%">Quantity</th>
-                            <th style="width:22%" class="text-center">Subtotal</th>
                             <th style="width:10%"></th>
                         </tr>
                         </thead>
                         <tbody>
-                        <tr>
-                            <td data-th="Product">
-                                <div class="row">
-                                    <div class="col-sm-3"><img src="/asus.png" class="img-responsive" width="100" height="100" alt="Product Image"></div>
-                                    <div class="col-sm-9">
-                                        <h4 class="" style="text-align: center;margin-top: 25px">Asus Vivobook </h4>
+                        @foreach($products as $product)
+                            <tr>
+                                <td data-th="Product">
+                                    <div class="row">
+                                        <div class="col-sm-3"><img src="/asus.png" class="img-responsive" width="100" height="100"></div>
+                                        <div class="col-sm-9">
+                                            <h4 class="" style="text-align: center; margin-top: 25px">{{ $product->name }}</h4>
+                                        </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td data-th="Price">$6</td>
-                            <td data-th="Quantity">
-                                <input type="number" value="1" class="form-control quantity cart_update" min="1">
-                            </td>
-                            <td data-th="Subtotal" class="text-center">$6</td>
-                            <td class="actions">
-                                <button class="btn btn-danger btn-sm cart_remove"><i class="fa fa-trash-o"></i> Delete</button>
-                            </td>
-                        </tr>
+                                </td>
+                                <td data-th="Price">${{ number_format($product->price, 2) }}</td>
+                                <td class="actions">
+                                    <form action="{{ route('session') }}" method="POST">
+                                        @csrf
+                                        <input type='hidden' name="product_id" value="{{ $product->id }}">
+                                        <input type='hidden' name="total" value="{{ $product->price }}">
+                                        <button class="btn btn-success btn-sm" type="submit"><i class="fa fa-money"></i> Checkout</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
                         </tbody>
                         <tfoot>
                         <tr>
-                            <td colspan="5" class="text-end"><h3><strong>Total $6</strong></h3></td>
+                            <td colspan="3" class="text-end">
+                                <h3><strong>Total ${{ number_format($products->sum('price'), 2) }}</strong></h3>
+                            </td>
                         </tr>
                         <tr>
-                            <td colspan="5" class="text-end">
-                                <form action="/session" method="POST">
-                                    <a href="{{ url('/') }}" class="btn btn-danger"><i class="fa fa-arrow-left"></i> Continue Shopping</a>
+                            <td colspan="3" class="text-end">
+                                <form action="{{ route('session') }}" method="POST">
                                     @csrf
-                                    <input type='hidden' name="total" value="6">
-                                    <input type='hidden' name="productName" value="Asus Vivobook">
-                                    <button class="btn btn-success" type="submit" id="checkout-live-button"><i class="fa fa-money"></i> Checkout</button>
+                                    <input type='hidden' name="total" value="{{ $products->sum('price') }}">
+                                    <input type='hidden' name="product_ids[]" value="{{ implode(',', $products->pluck('id')->toArray()) }}">
+                                    <button class="btn btn-success" type="submit" id="checkout-live-button"><i class="fa fa-money"></i> Checkout All</button>
                                 </form>
                             </td>
                         </tr>
