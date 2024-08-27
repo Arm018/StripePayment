@@ -29,7 +29,7 @@ class StripeController extends Controller
 
             $products = Product::whereIn('id', $productIds)->get();
         } else {
-            // Handle single product
+
             $productId = $request->input('product_id');
             $product = Product::find($productId);
             $products = collect([$product]);
