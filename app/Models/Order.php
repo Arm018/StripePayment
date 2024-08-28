@@ -43,4 +43,18 @@ class Order extends Model
         return self::STATUSES[$this->status];
     }
 
+    public function allPaymentsSuccessful()
+    {
+        return $this->payments->every(function ($payment) {
+            return $payment->status === OrderPayment::STATUS_PAID;
+        });
+    }
+
+    public function updateStatus()
+    {
+        if ($this->allPaymentsSuccessful()) {
+            $this->update(['status' => self::STATUS_SUCCESS]);
+        }
+    }
+
 }

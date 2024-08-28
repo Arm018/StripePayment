@@ -32,11 +32,24 @@ class StripeService
             'quantity' => $quantity,
         ])->save();
 
-        $orderPayment->fill([
-           'order_id' => $order->id,
-           'stripe_session_id' => '',
-            'amount' => $totalAmount,
-        ])->save();
+        $splitAmount = 1000;
+        $remainingAmount = $totalAmount;
+        $splitAmounts = [];
+
+        while ($remainingAmount > 0) {
+            $currentAmount = min($splitAmount, $remainingAmount);
+            $splitAmounts[] = $currentAmount;
+            $remainingAmount -= $currentAmount;
+        }
+
+        foreach ($splitAmounts as $amount) {
+            OrderPayment::create([
+                'order_id' => $order->id,
+                'stripe_session_id' => '',
+                'amount' => $amount,
+                'status' => OrderPayment::STATUS_PENDING,
+            ]);
+        }
 
 
 
@@ -59,63 +72,65 @@ class StripeService
             'cancel_url' => route('checkout'),
         ]);
 
-        $orderPayment->update(['stripe_session_id' => $session->id]);
+        foreach (OrderPayment::where('order_id', $order->id)->get() as $orderPayment) {
+            $orderPayment->update(['stripe_session_id' => $session->id]);
+        }
 
         return $session->url;
     }
 
     public function handleSuccess(string $sessionId): bool
     {
-        $orderPayment = OrderPayment::query()->where('stripe_session_id', $sessionId)->first();
+        $orderPayments = OrderPayment::where('stripe_session_id', $sessionId)->get();
 
-        if ($orderPayment) {
-            $orderPayment->status = OrderPayment::STATUS_PAID;
-            $orderPayment->save();
-            $order = $orderPayment->order;
-            if ($order) {
-                $order->update(['status' => Order::STATUS_SUCCESS]);
+        foreach ($orderPayments as $orderPayment) {
+            if ($orderPayment) {
+                $orderPayment->update(['status' => OrderPayment::STATUS_PAID]);
+
+                $order = $orderPayment->order;
+                if ($order) {
+                    $allPaid = $order->payments()->where('status', OrderPayment::STATUS_PAID)->count() === $order->payments()->count();
+
+                    $order->update(['status' => $allPaid ? Order::STATUS_SUCCESS : Order::STATUS_PENDING]);
+                }
             }
-            return true;
         }
 
-        return false;
+        return true;
     }
+
 
 
     public function handleWebhook(array $payload): bool
     {
-        $sessionId = $payload['data']['object']['id'];
-        $paymentStatus = $payload['data']['object']['payment_status'];
-        $amountReceived = $payload['data']['object']['amount_total'];
-        $currency = $payload['data']['object']['currency'];
+        $sessionId = $payload['data']['object']['id'] ?? null;
+        $paymentStatus = $payload['data']['object']['payment_status'] ?? 'unknown';
+        $amountReceived = $payload['data']['object']['amount_total'] / 100;
+        $currency = $payload['data']['object']['currency'] ?? 'usd';
 
         if ($sessionId) {
-            $orderPayment = OrderPayment::where('stripe_session_id', $sessionId)->first();
+            $orderPayments = OrderPayment::where('stripe_session_id', $sessionId)->get();
 
-            if ($orderPayment) {
-                if ($paymentStatus === 'paid') {
-
-                    $expectedAmount = $orderPayment->amount * 100;
+            foreach ($orderPayments as $orderPayment) {
+                if ($orderPayment) {
+                    $expectedAmount = $orderPayment->amount;
                     $expectedCurrency = 'usd';
 
-                    if ($amountReceived === $expectedAmount && $currency === $expectedCurrency) {
-                        $orderPayment->update(['status' => OrderPayment::STATUS_PAID]);
-                        $order = $orderPayment->order;
-                        if ($order) {
-                            $order->update(['status' => Order::STATUS_SUCCESS]);
+                    if ($paymentStatus === 'paid') {
+                        if ($amountReceived == $expectedAmount && $currency === $expectedCurrency) {
+                            $orderPayment->update(['status' => OrderPayment::STATUS_PAID]);
+                        } else {
+                            $orderPayment->update(['status' => OrderPayment::STATUS_FAILED]);
                         }
-                        return true;
                     } else {
-
-                        return false;
+                        $orderPayment->update(['status' => OrderPayment::STATUS_FAILED]);
                     }
-                } else {
 
-                    $orderPayment->update(['status' => OrderPayment::STATUS_FAILED]);
                     $order = $orderPayment->order;
                     if ($order) {
-                        $order->update(['status' => Order::STATUS_FAILED]);
+                        $order->updateStatus();
                     }
+
                     return true;
                 }
             }
@@ -123,6 +138,8 @@ class StripeService
 
         return false;
     }
+
+
 
 
 }
