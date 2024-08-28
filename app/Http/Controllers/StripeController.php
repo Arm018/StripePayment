@@ -2,94 +2,50 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\OrderRequest;
+use App\Models\Order;
+use App\Models\OrderPayment;
 use App\Models\OrderProduct;
 use App\Models\Product;
+use App\Services\StripeService;
 use Illuminate\Http\Request;
-use Stripe\Checkout\Session;
-use Stripe\Stripe;
-use App\Models\Order;
+use Stripe\Exception\SignatureVerificationException;
+use Stripe\Webhook;
 
 class StripeController extends Controller
 {
+    protected $stripeService;
+
+    public function __construct(StripeService $stripeService)
+    {
+        $this->stripeService = $stripeService;
+    }
+
     public function checkout()
     {
         $products = Product::all();
         return view('checkout', compact('products'));
     }
 
-    public function session(Request $request)
+    public function session(Request $request, Order $order, OrderProduct $orderProduct, OrderPayment $orderPayment)
     {
-        Stripe::setApiKey(config('stripe.sk'));
-
-        $productIds = $request->input('product_ids');
-        $totalPrice = $request->input('total');
-
-
-        if (is_array($productIds) && count($productIds) > 0) {
-
-            $products = Product::whereIn('id', $productIds)->get();
-        } else {
-
+        try {
             $productId = $request->input('product_id');
-            $product = Product::find($productId);
-            $products = collect([$product]);
+            $quantity = $request->input('quantity', 1);
+
+            $url = $this->stripeService->createSession($productId, $quantity, $order, $orderProduct, $orderPayment);
+
+            return redirect()->away($url);
+        } catch (\Exception $e) {
+            return back()->with(['error' => $e->getMessage()]);
         }
-
-        $lineItems = $products->map(function ($product) {
-            return [
-                'price_data' => [
-                    'currency'     => 'USD',
-                    'product_data' => [
-                        'name' => $product->name,
-                    ],
-                    'unit_amount'  => $product->price * 100,
-                ],
-                'quantity'   => 1,
-            ];
-        })->toArray();
-
-        $session = Session::create([
-            'payment_method_types' => ['card'],
-            'line_items' => $lineItems,
-            'mode'        => 'payment',
-            'success_url' => route('success').'?session_id={CHECKOUT_SESSION_ID}',
-            'cancel_url'  => route('checkout'),
-        ]);
-
-
-        $order = Order::create([
-            'total' => $totalPrice,
-            'status' => Order::STATUS_PENDING,
-            'stripe_session_id' => $session->id,
-        ]);
-
-
-        foreach ($products as $product) {
-            OrderProduct::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'quantity' => 1,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        }
-
-        return redirect()->away($session->url);
     }
-
-
-
-
-
 
     public function success(Request $request)
     {
         $sessionId = $request->query('session_id');
-        $order = Order::where('stripe_session_id', $sessionId)->first();
 
-        if ($order) {
-            $order->update(['status' => Order::STATUS_SUCCESS]);
-
+        if ($this->stripeService->handleSuccess($sessionId)) {
             return back()->with(['message' => 'Thanks for your order. You have just completed your payment.']);
         }
 
@@ -98,19 +54,25 @@ class StripeController extends Controller
 
     public function webhook(Request $request)
     {
-        $payload = $request->all();
-        $sessionId = $payload['data']['object']['id'] ?? null;
+        $payload = $request->getContent();
+        $sigHeader = $request->header('Stripe-Signature');
+        $endpointSecret = config('stripe.webhook_secret');
 
-        if ($sessionId) {
-            $order = Order::where('stripe_session_id', $sessionId)->first();
 
-            if ($order) {
-                $order->update(['status' => Order::STATUS_SUCCESS]);
-            } else {
-                return response()->json(['status' => 'error', 'message' => 'Order not found'], 404);
-            }
+        try {
+            Webhook::constructEvent($payload, $sigHeader, $endpointSecret);
+        } catch (\UnexpectedValueException $e) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid payload'], 400);
+        } catch (SignatureVerificationException $e) {
+            return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 400);
         }
 
-        return response()->json(['status' => 'success']);
+        $payload = json_decode($payload, true);
+
+        if ($this->stripeService->handleWebhook($payload)) {
+            return response()->json(['status' => 'success']);
+        }
+
+        return response()->json(['status' => 'error', 'message' => 'Order not found'], 404);
     }
 }

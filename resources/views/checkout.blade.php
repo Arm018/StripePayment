@@ -30,12 +30,8 @@
         .card-body {
             padding: 2rem;
         }
-        .nomargin {
-            margin: 0;
-            font-weight: bold;
-        }
         .quantity {
-            width: 60px;
+            width: 70px;
             text-align: center;
         }
         .btn-success {
@@ -44,13 +40,6 @@
         }
         .btn-success:hover {
             background-color: #218838;
-        }
-        .btn-danger {
-            background-color: #dc3545;
-            border: none;
-        }
-        .btn-danger:hover {
-            background-color: #c82333;
         }
         .table th, .table td {
             vertical-align: middle;
@@ -86,6 +75,7 @@
                         <tr>
                             <th style="width:50%">Product</th>
                             <th style="width:10%">Price</th>
+                            <th style="width: 18%">Quantity</th>
                             <th style="width:10%"></th>
                         </tr>
                         </thead>
@@ -94,41 +84,30 @@
                             <tr>
                                 <td data-th="Product">
                                     <div class="row">
-                                        <div class="col-sm-3"><img src="/asus.png" class="img-responsive" width="100" height="100"></div>
+                                        <div class="col-sm-3">
+                                            <img src="/asus.png" class="img-responsive" width="100" height="100">
+                                        </div>
                                         <div class="col-sm-9">
-                                            <h4 class="" style="text-align: center; margin-top: 25px">{{ $product->name }}</h4>
+                                            <h4 class="nomargin" style="text-align: center; margin-top: 25px">{{ $product->name }}</h4>
                                         </div>
                                     </div>
                                 </td>
                                 <td data-th="Price">${{ number_format($product->price, 2) }}</td>
-                                <td class="actions">
-                                    <form action="{{ route('session') }}" method="POST">
+                                <td data-th="Quantity">
+                                    <form action="{{ route('session') }}" method="POST" class="form-inline">
                                         @csrf
-                                        <input type='hidden' name="product_id" value="{{ $product->id }}">
-                                        <input type='hidden' name="total" value="{{ $product->price }}">
-                                        <button class="btn btn-success btn-sm" type="submit"><i class="fa fa-money"></i> Checkout</button>
+                                        <input type="number" name="quantity" id="quantity_{{ $product->id }}" value="1" min="1" class="form-control quantity">
+
+                                </td>
+                                <td class="actions">
+                                    <input type='hidden' name="product_id" value="{{ $product->id }}">
+                                    <input type='hidden' name="total" value="{{ $product->price }}">
+                                    <button class="btn btn-success btn-sm" type="submit"><i class="fa fa-money"></i> Checkout</button>
                                     </form>
                                 </td>
                             </tr>
                         @endforeach
                         </tbody>
-                        <tfoot>
-                        <tr>
-                            <td colspan="3" class="text-end">
-                                <h3><strong>Total ${{ number_format($products->sum('price'), 2) }}</strong></h3>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td colspan="3" class="text-end">
-                                <form action="{{ route('session') }}" method="POST">
-                                    @csrf
-                                    <input type='hidden' name="total" value="{{ $products->sum('price') }}">
-                                    <input type='hidden' name="product_ids[]" value="{{ implode(',', $products->pluck('id')->toArray()) }}">
-                                    <button class="btn btn-success" type="submit" id="checkout-live-button"><i class="fa fa-money"></i> Checkout All</button>
-                                </form>
-                            </td>
-                        </tr>
-                        </tfoot>
                     </table>
                 </div>
             </div>

@@ -12,29 +12,35 @@ class Order extends Model
     const STATUS_PENDING = 0;
     const STATUS_SUCCESS = 1;
     const STATUS_FAILED = 2;
+
+    const STATUSES = [
+        self::STATUS_PENDING => 'Pending',
+        self::STATUS_SUCCESS => 'Success',
+        self::STATUS_FAILED => 'Failed',
+    ];
     protected $fillable =
         [
-            'product_id',
             'total',
-            'stripe_session_id',
-            'status'
+            'status',
+            'created_at',
+            'updated_at',
         ];
 
+
+    public function payments()
+    {
+        return $this->hasMany(OrderPayment::class);
+    }
 
     public function products()
     {
         return $this->hasMany(OrderProduct::class);
     }
 
-    public function getStatusNameAttribute()
-    {
-        $statuses = [
-            self::STATUS_PENDING => 'Pending',
-            self::STATUS_SUCCESS => 'Success',
-            self::STATUS_FAILED => 'Failed',
-        ];
 
-        return $statuses[$this->status] ?? 'Unknown';
+    public function getStatusName()
+    {
+        return self::STATUSES[$this->status];
     }
 
 }
