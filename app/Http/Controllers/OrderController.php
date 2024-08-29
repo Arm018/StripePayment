@@ -37,8 +37,8 @@ class OrderController extends Controller
 
     public function showOrderPage($orderId, $totalAmount)
     {
-
-        return view('order', compact('orderId', 'totalAmount'));
+        $order = Order::with('products')->findOrFail($orderId);
+        return view('order', compact('orderId', 'totalAmount', 'order'));
     }
 
     public function splitOrder(Request $request)

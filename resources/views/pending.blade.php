@@ -84,7 +84,7 @@
 
             @foreach($orders as $order)
                     @if(isset($order) && $order->payments->count() > 0)
-                        <h4 style="text-align: center">Pending Orders</h4>
+                        <h4 style="text-align: center">Pending Order</h4>
                         <table class="table">
                             <thead>
                             <tr>
