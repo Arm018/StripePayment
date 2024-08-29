@@ -13,13 +13,27 @@ class ProductSeeder extends Seeder
      */
     public function run(): void
     {
-        for ($i = 0; $i < 10; $i++) {
+        $notebooks = [
+            ['name' => 'Acer Aspire 5'],
+            ['name' => 'Dell Inspiron 15'],
+            ['name' => 'HP Pavilion 14'],
+            ['name' => 'Lenovo ThinkPad X1'],
+            ['name' => 'Asus ZenBook 14'],
+            ['name' => 'Apple MacBook Air'],
+            ['name' => 'Microsoft Surface Laptop'],
+            ['name' => 'Samsung Galaxy Book'],
+            ['name' => 'Razer Blade Stealth'],
+            ['name' => 'MSI GF63 Thin'],
+        ];
+
+        foreach ($notebooks as $notebook) {
             Product::create([
-                'name' => fake()->word,
-                'price' => fake()->randomFloat(2,10,1000),
+                'name' => $notebook['name'],
+                'price' => fake()->randomFloat(2,500,3500),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
         }
     }
+
 }

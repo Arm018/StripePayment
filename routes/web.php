@@ -21,10 +21,11 @@ Route::get('/', function () {
 });
 
 Route::get('checkout', [StripeController::class, 'checkout'])->name('checkout');
-
+Route::post('pay-existing-order', [StripeController::class, 'payExistingOrder'])->name('pay.existing.order');
 Route::post('session', [StripeController::class, 'session'])->name('session');
 Route::get('success', [StripeController::class, 'success'])->name('success');
 Route::post('webhook', [StripeController::class, 'webhook'])->name('webhook');
+Route::get('pending', [StripeController::class, 'pending'])->name('orders.pending');
 
 
 

@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Services;
-use Stripe\Webhook;
+
 use App\Models\Order;
 use App\Models\OrderPayment;
 use App\Models\OrderProduct;
@@ -11,28 +11,47 @@ use Stripe\Stripe;
 
 class StripeService
 {
-    public function createSession(int $productId, int $quantity, Order $order, OrderProduct $orderProduct, OrderPayment $orderPayment): ?string
+    public function createSession(array $productIds, array $quantities, Order $order): ?string
     {
         Stripe::setApiKey(config('stripe.sk'));
 
-        $product = Product::query()->findOrFail($productId);
-
-        $price = $product->price * 100;
-        $totalAmount = ($price * $quantity) / 100;
+        $totalAmount = 0;
+        $lineItems = [];
 
 
-        $order->fill([
-            'total' => $totalAmount,
-            'status' => Order::STATUS_PENDING,
-        ])->save();
+        foreach ($productIds as $productId) {
+            $product = Product::findOrFail($productId);
+            $quantity = $quantities[$productId];
+            $price = $product->price * 100;
+            $totalAmount += $price * $quantity;
 
-        $orderProduct->fill([
-            'order_id' => $order->id,
-            'product_id' => $productId,
-            'quantity' => $quantity,
-        ])->save();
+            $lineItems[] = [
+                'price_data' => [
+                    'currency' => 'USD',
+                    'product_data' => [
+                        'name' => $product->name,
+                    ],
+                    'unit_amount' => $price,
+                ],
+                'quantity' => $quantity,
+            ];
 
-        $splitAmount = 1000;
+            $order->fill([
+                'total' => $totalAmount / 100,
+                'status' => Order::STATUS_PENDING,
+            ])->save();
+
+
+            $orderProduct = new OrderProduct();
+            $orderProduct->fill([
+                'order_id' => $order->id,
+                'product_id' => $productId,
+                'quantity' => $quantity,
+            ])->save();
+
+        }
+
+        $splitAmount = 1000 * 100;
         $remainingAmount = $totalAmount;
         $splitAmounts = [];
 
@@ -42,46 +61,36 @@ class StripeService
             $remainingAmount -= $currentAmount;
         }
 
+
         foreach ($splitAmounts as $amount) {
-            OrderPayment::create([
+            $orderPayment = new OrderPayment();
+            $orderPayment->fill([
                 'order_id' => $order->id,
                 'stripe_session_id' => '',
-                'amount' => $amount,
+                'amount' => $amount / 100,
                 'status' => OrderPayment::STATUS_PENDING,
-            ]);
+            ])->save();
         }
-
-
-
-        $lineItem = [
-            'price_data' => [
-                'currency' => 'USD',
-                'product_data' => [
-                    'name' => $product->name,
-                ],
-                'unit_amount' => $price,
-            ],
-            'quantity' => $quantity,
-        ];
 
         $session = Session::create([
             'payment_method_types' => ['card'],
-            'line_items' => [$lineItem],
+            'line_items' => $lineItems,
             'mode' => 'payment',
             'success_url' => route('success') . '?session_id={CHECKOUT_SESSION_ID}',
             'cancel_url' => route('checkout'),
         ]);
 
-        foreach (OrderPayment::where('order_id', $order->id)->get() as $orderPayment) {
+        foreach ($order->payments as $orderPayment) {
             $orderPayment->update(['stripe_session_id' => $session->id]);
         }
 
         return $session->url;
     }
 
+
     public function handleSuccess(string $sessionId): bool
     {
-        $orderPayments = OrderPayment::where('stripe_session_id', $sessionId)->get();
+        $orderPayments = OrderPayment::query()->where('stripe_session_id', $sessionId)->get();
 
         foreach ($orderPayments as $orderPayment) {
             if ($orderPayment) {
@@ -95,10 +104,8 @@ class StripeService
                 }
             }
         }
-
         return true;
     }
-
 
 
     public function handleWebhook(array $payload): bool
@@ -109,7 +116,7 @@ class StripeService
         $currency = $payload['data']['object']['currency'] ?? 'usd';
 
         if ($sessionId) {
-            $orderPayments = OrderPayment::where('stripe_session_id', $sessionId)->get();
+            $orderPayments = OrderPayment::query()->where('stripe_session_id', $sessionId)->get();
 
             foreach ($orderPayments as $orderPayment) {
                 if ($orderPayment) {
@@ -139,7 +146,36 @@ class StripeService
         return false;
     }
 
+    public function createSessionForExistingPayment(OrderPayment $orderPayment, int $productId): ?string
+    {
+        Stripe::setApiKey(config('stripe.sk'));
 
+        $product = Product::findOrFail($productId);
+        $amount = $orderPayment->amount * 100;
+
+        $lineItem = [
+            'price_data' => [
+                'currency' => 'USD',
+                'product_data' => [
+                    'name' => $product->name,
+                ],
+                'unit_amount' => $amount,
+            ],
+            'quantity' => 1,
+        ];
+
+        $session = Session::create([
+            'payment_method_types' => ['card'],
+            'line_items' => [$lineItem],
+            'mode' => 'payment',
+            'success_url' => route('success') . '?session_id={CHECKOUT_SESSION_ID}',
+            'cancel_url' => route('checkout'),
+        ]);
+
+        $orderPayment->update(['stripe_session_id' => $session->id]);
+
+        return $session->url;
+    }
 
 
 }

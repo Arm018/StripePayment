@@ -64,7 +64,7 @@
         <div class="col-md-8">
             <div class="card">
                 <div class="card-header">
-                    Notebook Shop
+                    Pending Orders
                 </div>
                 <div class="card-body">
                     @if (session('message'))
@@ -78,54 +78,56 @@
                             {{ session('error') }}
                         </div>
                     @endif
-                     <a href="{{ route('orders.pending') }}" class="btn btn-primary mb-3">Pending Orders</a>
+                    <a href="{{ route('checkout') }}" class="btn btn-primary mb-3">Back to Shop</a>
 
-                    <form action="{{ route('session') }}" method="POST">
-                        @csrf
-                        <table id="cart" class="table table-hover">
+                </div>
+
+            @foreach($orders as $order)
+                    @if(isset($order) && $order->payments->count() > 0)
+                        <h4 style="text-align: center">Pending Orders</h4>
+                        <table class="table">
                             <thead>
                             <tr>
-                                <th style="width:10%">Select</th>
-                                <th style="width:40%">Product</th>
-                                <th style="width:10%">Price</th>
-                                <th style="width:20%">Quantity</th>
+                                <th style="width:20%">Product ID</th>
+                                <th style="width:40%">Payment Amount</th>
+                                <th style="width:15%">Status</th>
+                                <th style="width:25%">Action</th>
                             </tr>
                             </thead>
                             <tbody>
-                            @foreach($products as $product)
+                            @foreach($order->payments as $payment)
+                                @php
+                                    $product = $order->products->first();
+                                @endphp
                                 <tr>
-                                    <td data-th="Select">
-                                        <input type="checkbox" name="product_ids[]" value="{{ $product->id }}">
-                                    </td>
-                                    <td data-th="Product">
-                                        <div class="row">
-                                            <div class="col-sm-3">
-                                                <img src="/asus.png" class="img-responsive" width="100" height="100">
-                                            </div>
-                                            <div class="col-sm-9">
-                                                <h4 class="nomargin"
-                                                    style="text-align: center; margin-top: 25px">{{ $product->name }}</h4>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td data-th="Price">${{ number_format($product->price, 2) }}</td>
-                                    <td data-th="Quantity">
-                                        <input type="number" name="quantities[{{ $product->id }}]" value="1" min="1"
-                                               class="form-control quantity">
+                                    <td>{{ $product->id }}</td>
+                                    <td>${{ number_format($payment->amount, 2) }}</td>
+                                    <td>{{ $payment->getStatusName() }}</td>
+                                    <td>
+                                        @if($payment->status === \App\Models\OrderPayment::STATUS_PENDING)
+                                            <form action="{{ route('pay.existing.order') }}" method="POST">
+                                                @csrf
+                                                <input type="hidden" name="order_payment_id"
+                                                       value="{{ $payment->id }}">
+                                                <input type="hidden" name="product_id" value="{{$product->id}}">
+                                                <button type="submit" class="btn btn-success">Pay
+                                                    ${{ number_format($payment->amount, 2) }} Now
+                                                </button>
+                                            </form>
+                                        @else
+                                            <button class="btn btn-secondary" disabled>Already Paid</button>
+                                        @endif
                                     </td>
                                 </tr>
                             @endforeach
+
                             </tbody>
                         </table>
-
-                        <button class="btn btn-success btn-block" type="submit">Checkout</button>
-                    </form>
-                </div>
+                    @endif
+                @endforeach
             </div>
         </div>
     </div>
 </div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
