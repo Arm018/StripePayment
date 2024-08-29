@@ -32,9 +32,14 @@ class Order extends Model
         return $this->hasMany(OrderPayment::class, 'order_id', 'id');
     }
 
-    public function products()
+    public function orderProducts()
     {
         return $this->hasMany(OrderProduct::class);
+    }
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class, 'order_products')->withPivot('quantity');
     }
 
 

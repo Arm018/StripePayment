@@ -80,7 +80,7 @@
                     @endif
                      <a href="{{ route('orders.pending') }}" class="btn btn-primary mb-3">Pending Orders</a>
 
-                    <form action="{{ route('session') }}" method="POST">
+                     <form action="{{ route('order.create') }}" method="POST">
                         @csrf
                         <table id="cart" class="table table-hover">
                             <thead>

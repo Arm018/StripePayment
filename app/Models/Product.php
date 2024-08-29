@@ -17,8 +17,15 @@ class Product extends Model
             'updated_at'
         ];
 
+    public function orderProducts()
+    {
+        return $this->hasMany(OrderProduct::class);
+    }
+
     public function orders()
     {
-        return $this->hasMany(Order::class);
+        return $this->belongsToMany(Order::class, 'order_products')->withPivot('quantity');
     }
+
+
 }
